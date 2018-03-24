@@ -1,0 +1,8 @@
+[package]
+name = "waypoint-demo"
+version = "0.1.0"
+authors = ["Zelda Hessler <zelda.hessler@gmail.com>"]
+
+[dependencies]
+ggez = "0.4.1"
+nalgebra = "0.14.1"
