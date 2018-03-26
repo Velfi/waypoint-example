@@ -1,4 +1,12 @@
 [[package]]
+name = "Game Skunkworks"
+version = "0.1.0"
+dependencies = [
+ "ggez 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nalgebra 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "adler32"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -956,14 +964,6 @@ dependencies = [
 name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "waypoint-demo"
-version = "0.1.0"
-dependencies = [
- "ggez 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "nalgebra 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "winapi"
