@@ -22,6 +22,10 @@ impl GameTimer {
         self.frame_time
     }
 
+    pub fn get_ticks(&self) -> usize {
+        self.tick_counter
+    }
+
     pub fn tick(&mut self) {
         self.frame_time = duration_to_f64(self.previous_instant.elapsed());
         self.previous_instant = Instant::now();

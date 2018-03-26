@@ -3,6 +3,7 @@ extern crate nalgebra;
 extern crate skunkworks;
 
 use ggez::{conf, event, Context, GameResult};
+use ggez::event::MouseButton;
 
 use ggez::graphics;
 use ggez::graphics::{DrawMode, Font, Mesh, Point2};
@@ -12,14 +13,14 @@ use nalgebra::Vector2;
 use std::{env, path};
 
 use skunkworks::game_timer::GameTimer;
-use skunkworks::{actor_at_waypoint, draw_player, draw_waypoint_labels, draw_waypoints,
-                 move_towards_next_waypoint, Actor, Waypoint};
+use skunkworks::{actor_at_waypoint, draw_player, draw_waypoints, draw_waypoint_labels, move_towards_next_waypoint,
+                 Actor, Waypoint};
 
 pub struct MainState {
     player: Actor,
-    font: Font,
     circle_mesh: Mesh,
     game_timer: GameTimer,
+    font: Font,
 }
 
 impl MainState {
@@ -27,28 +28,10 @@ impl MainState {
         let font = Font::new(ctx, "/font.ttf", 12)?;
         let circle_mesh = Mesh::new_circle(ctx, DrawMode::Fill, Point2::new(0.0, 0.0), 14.0, 0.4)?;
 
-        let waypoints = vec![
-            Waypoint {
-                position: Vector2::new(120.0, 30.0),
-            },
-            Waypoint {
-                position: Vector2::new(280.0, 250.0),
-            },
-            Waypoint {
-                position: Vector2::new(230.0, 440.0),
-            },
-            Waypoint {
-                position: Vector2::new(520.0, 510.0),
-            },
-            Waypoint {
-                position: Vector2::new(680.0, 100.0),
-            },
-        ];
-
         let player = Actor {
             position: Vector2::new(20.0, 20.0),
-            speed: 100.0,
-            waypoints,
+            speed: 200.0,
+            waypoints: Vec::with_capacity(5),
         };
 
         let s = MainState {
@@ -63,6 +46,14 @@ impl MainState {
 }
 
 impl event::EventHandler for MainState {
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: i32, y: i32) {
+        println!("Mouse button pressed: {:?}, x: {}, y: {}", button, x, y);
+        if let MouseButton::Right = button {
+            let new_waypoint = Waypoint::new(x as f32, y as f32);
+            self.player.waypoints.push(new_waypoint);
+        }
+    }
+
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         self.game_timer.tick();
         update_player(&mut self.player, &self.game_timer.get_frame_time())?;
@@ -108,14 +99,7 @@ pub fn main() {
 pub fn update_player(player: &mut Actor, frame_time: &f64) -> GameResult<()> {
     move_towards_next_waypoint(player, frame_time);
     if actor_at_waypoint(player) {
-        move_first_to_last(&mut player.waypoints);
-    }
+        player.waypoints.remove(0);
+    };
     Ok(())
-}
-
-pub fn move_first_to_last<T>(list: &mut Vec<T>) {
-    if !list.is_empty() {
-        let first: T = list.remove(0);
-        list.push(first);
-    }
 }
