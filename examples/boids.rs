@@ -67,8 +67,8 @@ impl MainState {
 impl event::EventHandler for MainState {
 
     fn mouse_motion_event(&mut self, _ctx: &mut Context, _mouse_state: MouseState, x: i32, y: i32, _xrel: i32, _yrel: i32) {
-        self.mouse_position.x = x as f64;
-        self.mouse_position.y = y as f64;
+        self.mouse_position.x = f64::from(x);
+        self.mouse_position.y = f64::from(y);
     }
 
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
