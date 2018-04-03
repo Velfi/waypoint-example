@@ -1,38 +1,26 @@
-extern crate ggez;
 extern crate cgmath;
+extern crate ggez;
+extern crate rand;
 extern crate skunkworks;
 
-use ggez::{
-    conf,
-    event::{
-        self,
-        MouseState,
-    },
-    Context,
-    GameResult,
-    graphics::{
-        self,
-        // Font,
-        Image,
-        Point2
-    }
-};
+use ggez::{conf, Context, GameResult, event::{self, MouseState},
+           graphics::{self,
+                      // Font,
+                      Image,
+                      Point2}};
 
-use cgmath::{
-    Angle,
-    Rad,
-    Vector2,
-    num_traits::{
-        Num,
-        signum,
-        abs,
-    },
-    prelude::*,
-};
+use cgmath::{Rad, Vector2, prelude::*};
 
-use std::f32::consts::PI;
+use rand::{thread_rng, Rng, ThreadRng};
 
-use skunkworks::game_timer::GameTimer;
+use skunkworks::{affine_transform, bearing_to_target, game_timer::GameTimer, limit_vector2};
+
+const SCREEN_HEIGHT: u32 = 800;
+const SCREEN_WIDTH: u32 = 1280;
+const MAX_FORCE: f64 = 0.8;
+const MAX_SPEED: f64 = 4.0;
+const CIRCLE_RADIUS: f64 = 100.0; // Radius of the wandering circle
+const RADIAN_DELTA: f64 = 0.017_453_3f64 * 20.0; // Maximum degree of variance when wandering
 
 pub struct MainState {
     // circle_sprite: Image,
@@ -40,6 +28,7 @@ pub struct MainState {
     game_timer: GameTimer,
     vehicle: Vehicle,
     // font: Font,
+    rng_seed: ThreadRng,
     mouse_position: cgmath::Point2<f64>,
 }
 
@@ -48,14 +37,15 @@ impl MainState {
         // let font = Font::new(ctx, "/font.ttf", 12)?;
         // let mut circle_sprite = Image::new(ctx, "/circle.png")?;
         let boid_sprite = Image::new(ctx, "/boid.png")?;
-
-        let vehicle = Vehicle::new(cgmath::Point2::new(400.0, 300.0));
+        let vehicle = Vehicle::new(VehicleBehavior::Wander, cgmath::Point2::new(400.0, 300.0));
+        let rng_seed = thread_rng();
 
         let s = MainState {
             // font,
             // circle_sprite,
             boid_sprite,
             vehicle,
+            rng_seed,
             mouse_position: cgmath::Point2::new(0.0, 0.0),
             game_timer: GameTimer::new(),
         };
@@ -65,17 +55,31 @@ impl MainState {
 }
 
 impl event::EventHandler for MainState {
-
-    fn mouse_motion_event(&mut self, _ctx: &mut Context, _mouse_state: MouseState, x: i32, y: i32, _xrel: i32, _yrel: i32) {
+    fn mouse_motion_event(
+        &mut self,
+        _ctx: &mut Context,
+        _mouse_state: MouseState,
+        x: i32,
+        y: i32,
+        _xrel: i32,
+        _yrel: i32,
+    ) {
         self.mouse_position.x = f64::from(x);
         self.mouse_position.y = f64::from(y);
     }
 
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         self.game_timer.tick();
-        // self.vehicle.seek(self.mouse_position);
-        self.vehicle.arrive(self.mouse_position);
+
+        match self.vehicle.behavior {
+            VehicleBehavior::Seek => self.vehicle.seek(self.mouse_position),
+            VehicleBehavior::Flee => self.vehicle.flee(self.mouse_position),
+            VehicleBehavior::Arrive => self.vehicle.arrive(self.mouse_position),
+            VehicleBehavior::Wander => self.vehicle.wander(self.rng_seed.next_f64()),
+        }
+
         self.vehicle.update();
+        // _ctx.quit();
         Ok(())
     }
 
@@ -86,8 +90,11 @@ impl event::EventHandler for MainState {
             ctx,
             &self.boid_sprite,
             graphics::DrawParam {
-                dest: Point2::new(self.vehicle.location.x as f32, self.vehicle.location.y as f32),
-                rotation: bearing_to_target(self.vehicle.location, self.mouse_position),
+                dest: Point2::new(
+                    self.vehicle.location.x as f32,
+                    self.vehicle.location.y as f32,
+                ),
+                rotation: self.vehicle.get_bearing(),
                 offset: Point2::new(0.5, 0.5),
                 ..Default::default()
             },
@@ -105,13 +112,10 @@ impl event::EventHandler for MainState {
 pub fn main() {
     use std::{env, path};
 
-    let c = conf::Conf::new();
+    let mut c = conf::Conf::new();
+    c.window_mode.width = SCREEN_WIDTH;
+    c.window_mode.height = SCREEN_HEIGHT;
     let ctx = &mut Context::load_from_conf("Test", "Waypoint", c).unwrap();
-
-    let test_vec = Vector2::new(100.0, 50.0);
-    println!("before normalize: {:?}", test_vec);
-    let test_vec = test_vec.normalize();
-    println!("after normalize: {:?}", test_vec);
 
     // We add the CARGO_MANIFEST_DIR/resources do the filesystems paths so
     // we we look in the cargo project for files.
@@ -130,80 +134,119 @@ pub fn main() {
     }
 }
 
+#[derive(Debug)]
 struct Vehicle {
+    behavior: VehicleBehavior,
     location: cgmath::Point2<f64>,
+    wander_angle: Rad<f64>,
     velocity: Vector2<f64>,
     acceleration: Vector2<f64>,
-    maxforce: f64,
-    maxspeed: f64,
+    max_force: f64,
+    max_speed: f64,
 }
 
 impl Vehicle {
-    fn new(location: cgmath::Point2<f64>)-> Vehicle {
+    fn new(behavior: VehicleBehavior, location: cgmath::Point2<f64>) -> Vehicle {
         Vehicle {
-            acceleration: Vector2::new(0.0, 0.0),
-            velocity: Vector2::new(0.0, 0.0),
+            behavior,
             location,
-            maxspeed: 5.0,
-            maxforce: 0.1,
+            wander_angle: Rad(0.0),
+            velocity: Vector2::new(0.0, 0.0),
+            acceleration: Vector2::new(0.0, 0.0),
+            max_force: MAX_FORCE,
+            max_speed: MAX_SPEED,
         }
     }
 
     fn update(&mut self) {
         self.velocity += self.acceleration;
-        limit_vector2(self.maxspeed, &mut self.velocity);
+        self.velocity = limit_vector2(self.max_speed, self.velocity);
         self.location += self.velocity;
-        self.acceleration *= 0.0; // acceleration.mult(0);
+        self.acceleration *= 0.0;
+
+        if (self.location.x as f32) < 0.0 {
+            self.location.x = f64::from(SCREEN_WIDTH);
+        } else if (self.location.x as f32) > (SCREEN_WIDTH as f32) {
+            self.location.x = 0.0;
+        }
+
+        if (self.location.y as f32) < 0.0 {
+            self.location.y = f64::from(SCREEN_HEIGHT);
+        } else if (self.location.y as f32) > (SCREEN_HEIGHT as f32) {
+            self.location.y = 0.0;
+        }
     }
 
     fn apply_force(&mut self, force: Vector2<f64>) {
+        let force = limit_vector2(self.max_force, force);
         self.acceleration += force;
+    }
+
+    fn get_bearing(&self) -> f32 {
+        bearing_to_target(self.location, self.location + self.velocity)
     }
 
     fn seek(&mut self, target: cgmath::Point2<f64>) {
         let mut desired = target - self.location;
-        desired = desired.normalize();
-        desired *= self.maxspeed;
+        let distance = desired.magnitude();
 
-        let mut steer = desired - self.velocity;
-        limit_vector2(self.maxforce, &mut steer);
-        self.apply_force(steer);
+        if distance > 1.0 {
+            desired = desired.normalize();
+            desired *= self.max_speed;
+            let steer = desired - self.velocity;
+            self.apply_force(steer)
+        }
+    }
+
+    fn flee(&mut self, target: cgmath::Point2<f64>) {
+        let safety_range = 200.0;
+        let mut desired = self.location - target;
+        let distance = desired.magnitude();
+
+        if distance < safety_range {
+            desired = desired.normalize();
+            desired *= self.max_speed;
+            let steer = desired - self.velocity;
+            self.apply_force(steer)
+        }
     }
 
     fn arrive(&mut self, target: cgmath::Point2<f64>) {
         let mut desired = target - self.location;
-        let d_magnitude = desired.magnitude();
+        let distance = desired.magnitude();
         desired = desired.normalize();
 
-        if d_magnitude < 100.0 {
-            let m = affine_transform(d_magnitude, 0.0, 100.0, 0.0, self.maxspeed);
+        if distance < 100.0 {
+            let m = affine_transform(distance, 0.0, 100.0, 0.0, self.max_speed);
             desired *= m;
         } else {
-            desired *= self.maxspeed;
+            desired *= self.max_speed;
         }
 
-        let mut steer = desired - self.velocity;
-        limit_vector2(self.maxforce, &mut steer);
+        let steer = desired - self.velocity;
         self.apply_force(steer);
     }
-}
 
-fn limit_vector2(limit: f64, vector: &mut Vector2<f64>) {
-    if abs(vector.x) > limit {
-        vector.x = signum(vector.x) * limit
+    fn wander(&mut self, rng_f64: f64) {
+        let center = match self.velocity {
+            Vector2 { x, y } if x == 0.0 && y == 0.0 => self.location,
+            Vector2 { x, y } if x.is_nan() || y.is_nan() => self.location,
+            _ => self.location + (self.velocity * CIRCLE_RADIUS),
+        };
+
+        self.wander_angle += Rad(rng_f64 * RADIAN_DELTA) - Rad(RADIAN_DELTA * 0.5);
+
+        let x = CIRCLE_RADIUS * Angle::cos(self.wander_angle);
+        let y = CIRCLE_RADIUS * Angle::sin(self.wander_angle);
+        let offset = Vector2::new(x, y);
+        self.seek(center + offset);
     }
-    if abs(vector.y) > limit {
-        vector.y = signum(vector.y) * limit
-    }
 }
 
-fn bearing_to_target(origin: cgmath::Point2<f64>, target: cgmath::Point2<f64>)-> f32 {
-    let vector: Vector2<f64> = target - origin;
-    let rad: Rad<f64> = Angle::atan2(vector.y, vector.x);
-    rad.0 as f32 + PI / 2.0
-}
-
-fn affine_transform<T>(value: T, from_min: T, from_max: T, to_min: T, to_max: T)-> T
-    where T: Num + Copy {
-    (value - from_min) * ((to_max - to_min) / (from_max - from_min)) + to_min
+#[derive(Debug)]
+enum VehicleBehavior {
+    Flee,
+    Seek,
+    Arrive,
+    Wander,
 }

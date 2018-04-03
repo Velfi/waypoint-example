@@ -1,12 +1,27 @@
 extern crate ggez;
 extern crate nalgebra;
+extern crate cgmath;
+
+use std::f32::consts::PI;
 
 use ggez::{Context, GameResult};
 
 use ggez::graphics;
 use ggez::graphics::{Color, Font, Mesh, Point2, Text};
 
-use nalgebra::{distance, normalize, Vector2};
+use nalgebra::{distance, normalize};
+
+use cgmath::{
+    Angle,
+    Rad,
+    Vector2,
+    num_traits::{
+        Num,
+        signum,
+        abs,
+    },
+    prelude::*,
+};
 
 pub mod game_timer;
 
@@ -30,7 +45,7 @@ pub const WAYPOINT_LABEL_COLOR: Color = Color {
 };
 
 pub struct Actor {
-    pub position: Vector2<f32>,
+    pub position: nalgebra::Vector2<f32>,
     pub speed: f64,
     pub waypoints: Vec<Waypoint>,
 }
@@ -46,13 +61,13 @@ pub fn draw_player(ctx: &mut Context, player: &Actor, circle_mesh: &Mesh) -> Gam
 }
 
 pub struct Waypoint {
-    pub position: Vector2<f32>,
+    pub position: nalgebra::Vector2<f32>,
 }
 
 impl Waypoint {
     pub fn new(x: f32, y: f32) -> Waypoint {
         Waypoint {
-            position: Vector2::new(x, y),
+            position: nalgebra::Vector2::new(x, y),
         }
     }
 }
@@ -108,4 +123,33 @@ pub fn move_towards_next_waypoint(actor: &mut Actor, delta_t: &f64) {
         let vector_to_destination = normalize(&(actor.waypoints[0].position - actor.position));
         actor.position += vector_to_destination * velocity;
     }
+}
+
+pub fn limit_vector2(limit: f64, vector: Vector2<f64>)-> Vector2<f64> {
+    let mut result = vector;
+    if abs(vector.x) > limit {
+        result.x = signum(result.x) * limit
+    }
+    if abs(vector.y) > limit {
+        result.y = signum(result.y) * limit
+    }
+
+    result
+}
+
+pub fn bearing_to_target(origin: cgmath::Point2<f64>, target: cgmath::Point2<f64>)-> f32 {
+    let vector: Vector2<f64> = target - origin;
+    let rad: Rad<f64> = Angle::atan2(vector.y, vector.x);
+    rad.0 as f32 + PI / 2.0
+}
+
+pub fn affine_transform<T>(value: T, from_min: T, from_max: T, to_min: T, to_max: T)-> T
+    where T: Num + Copy {
+    (value - from_min) * ((to_max - to_min) / (from_max - from_min)) + to_min
+}
+
+pub fn rotate_vector2(vector2: &mut Vector2<f64>, angle: Rad<f64>) {
+   let magnitude: f64 = vector2.magnitude();
+   vector2.x = Angle::cos(angle) * magnitude;
+   vector2.y = Angle::sin(angle) * magnitude;
 }
