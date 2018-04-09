@@ -9,7 +9,7 @@ use ggez::{Context, GameResult};
 use ggez::graphics;
 use ggez::graphics::{Color, Font, Mesh, Point2, Text};
 
-use nalgebra::{distance, normalize};
+use nalgebra::normalize;
 
 use cgmath::{
     Angle,
@@ -106,7 +106,7 @@ pub fn draw_waypoints(
 
 pub fn actor_at_waypoint(actor: &Actor) -> bool {
     if !actor.waypoints.is_empty() {
-        let distance = distance(
+        let distance = nalgebra::distance(
             &Point2::from_coordinates(actor.waypoints[0].position),
             &Point2::from_coordinates(actor.position),
         ) as f64;
