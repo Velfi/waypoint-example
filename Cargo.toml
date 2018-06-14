@@ -8,7 +8,7 @@ name = "skunkworks"
 path = "src/lib.rs"
 
 [dependencies]
-ggez = "0.4.1"
+ggez = "0.4.3"
 nalgebra = "0.14.1"
 cgmath = "0.16.1"
 rand = "*"

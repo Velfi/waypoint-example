@@ -3,13 +3,18 @@ extern crate ggez;
 extern crate rand;
 extern crate skunkworks;
 
-use ggez::{conf, Context, GameResult, event::{self, MouseState},
-           graphics::{self,
+use ggez::{
+    conf, event::{self, MouseState},
+    graphics::{
+        self,
                       // Font,
                       Image,
-                      Point2}};
+        Point2,
+    }, Context,
+    GameResult,
+};
 
-use cgmath::{Rad, Vector2, prelude::*};
+use cgmath::{prelude::*, Rad, Vector2};
 
 use rand::{thread_rng, Rng, ThreadRng};
 
@@ -17,18 +22,26 @@ use std::cell::RefCell;
 
 use skunkworks::{affine_transform, bearing_to_target, game_timer::GameTimer, limit_vector2};
 
+const BOID_COUNT: u32 = 200;
 const SCREEN_HEIGHT: u32 = 800;
 const SCREEN_WIDTH: u32 = 1280;
-const MAX_FORCE: f64 = 0.2;
-const MAX_SPEED: f64 = 4.0;
+const MAX_FORCE: f64 = 0.03;
+const MAX_SPEED: f64 = 2.0;
 const CIRCLE_RADIUS: f64 = 100.0; // Radius of the wandering circle
 const RADIAN_DELTA: f64 = 0.017_453_3f64 * 15.0; // Maximum degree of variance when wandering
-const SEPARATION_RANGE: f64 = 50.0;
-const SEPARATION_WEIGHT: f64 = 1.0;
-const ALIGN_RANGE: f64 = 65.0;
+const WANDER_WEIGHT: f64 = 1.0;
+const SEPARATION_RANGE: f64 = 25.0;
+const SEPARATION_WEIGHT: f64 = 1.5;
+const ALIGN_RANGE: f64 = 50.0;
 const ALIGN_WEIGHT: f64 = 1.0;
-const COHESION_RANGE: f64 = 80.0;
+const COHESION_RANGE: f64 = 50.0;
 const COHESION_WEIGHT: f64 = 1.0;
+const CONSTRAIN_DISTANCE: f32 = 50.0;
+
+const ZERO_VECTOR: Vector2<f64> = Vector2 {
+    x: 0f64,
+    y: 0f64,
+};
 
 pub struct MainState {
     // circle_sprite: Image,
@@ -45,11 +58,11 @@ pub struct MainState {
 impl MainState {
     fn new(ctx: &mut Context) -> GameResult<MainState> {
         // let font = Font::new(ctx, "/font.ttf", 12)?;
-        let bg_image = Image::new(ctx, "/sand.png")?;
-        let boid_image = Image::new(ctx, "/ant.png")?;
+        let bg_image = Image::new(ctx, "/water.png")?;
+        let boid_image = Image::new(ctx, "/koi.png")?;
         let mut rng_seed = thread_rng();
         let mut vehicles = Vec::new();
-        for _i in 0..200 {
+        for _i in 0..BOID_COUNT {
             vehicles.push(RefCell::new(Vehicle::new(
                 Vector2::new(
                     rng_seed.gen_range(-MAX_SPEED, MAX_SPEED),
@@ -191,20 +204,26 @@ impl Vehicle {
         let mut separate = self.separate(vehicles);
         let mut align = self.align(vehicles);
         let mut cohere = self.cohesion(vehicles);
+        let mut wander = self.wander(rng_seed.next_f64());
 
         separate *= SEPARATION_WEIGHT;
         align *= ALIGN_WEIGHT;
         cohere *= COHESION_WEIGHT;
+        wander *= WANDER_WEIGHT;
 
         self.apply_force(separate);
         self.apply_force(align);
         self.apply_force(cohere);
-
-        self.wander(rng_seed.next_f64());
+        self.apply_force(wander);
 
         self.apply_acceleration();
 
-        self.constrain_location(0.0, SCREEN_WIDTH as f32, 0.0, SCREEN_HEIGHT as f32);
+        self.constrain_location(
+            -CONSTRAIN_DISTANCE,
+            SCREEN_WIDTH as f32 + CONSTRAIN_DISTANCE,
+            -CONSTRAIN_DISTANCE,
+            SCREEN_HEIGHT as f32 + CONSTRAIN_DISTANCE,
+        );
     }
 
     fn apply_force(&mut self, force: Vector2<f64>) {
@@ -277,7 +296,7 @@ impl Vehicle {
         self.apply_force(steer);
     }
 
-    fn wander(&mut self, rng_f64: f64) {
+    fn wander(&mut self, rng_f64: f64) -> Vector2<f64> {
         let center = match self.velocity {
             Vector2 { x, y } if x == 0.0 && y == 0.0 => self.location,
             Vector2 { x, y } if x.is_nan() || y.is_nan() => self.location,
@@ -289,7 +308,17 @@ impl Vehicle {
         let x = CIRCLE_RADIUS * Angle::cos(self.wander_angle);
         let y = CIRCLE_RADIUS * Angle::sin(self.wander_angle);
         let offset = Vector2::new(x, y);
-        self.seek(center + offset);
+
+        let mut desired = center + offset - self.location;
+        let distance = desired.magnitude();
+
+        if distance > 1.0 {
+            desired = desired.normalize();
+            desired *= self.max_speed;
+            desired - self.velocity
+        } else {
+            ZERO_VECTOR
+        }
     }
 
     fn separate(&mut self, vehicles: &[RefCell<Vehicle>]) -> Vector2<f64> {
@@ -316,7 +345,7 @@ impl Vehicle {
             sum *= MAX_SPEED;
             (sum - self.velocity)
         } else {
-            Vector2::new(0f64, 0f64)
+            ZERO_VECTOR
         }
     }
 
@@ -341,13 +370,13 @@ impl Vehicle {
             sum *= MAX_SPEED;
             (sum - self.velocity)
         } else {
-            Vector2::new(0f64, 0f64)
+            ZERO_VECTOR
         }
     }
 
     fn cohesion(&mut self, vehicles: &[RefCell<Vehicle>]) -> cgmath::Vector2<f64> {
-        let mut sum = Vector2::new(0f64, 0f64);
-        let mut count = 0;
+        let mut sum = ZERO_VECTOR.clone();
+        let mut count = 0f64;
 
         for vehicle in vehicles {
             if vehicle.as_ptr() != self as *mut Vehicle {
@@ -355,15 +384,15 @@ impl Vehicle {
                 let d = self.location.distance(neighbour.location);
                 if d < COHESION_RANGE {
                     sum += neighbour.location.to_vec();
-                    count += 1;
+                    count += 1.0;
                 }
             }
         }
 
-        if count > 0 {
-            (sum / f64::from(count))
+        if count > 0.0 {
+            (sum / count)
         } else {
-            Vector2::new(0f64, 0f64)
+            ZERO_VECTOR
         }
     }
 }
