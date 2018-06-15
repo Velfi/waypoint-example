@@ -1,6 +1,6 @@
+extern crate cgmath;
 extern crate ggez;
 extern crate nalgebra;
-extern crate cgmath;
 
 use std::f32::consts::PI;
 
@@ -11,17 +11,11 @@ use ggez::graphics::{Color, Font, Mesh, Point2, Text};
 
 use nalgebra::normalize;
 
-use cgmath::{
-    Angle,
-    Rad,
-    Vector2,
-    num_traits::{
-        Num,
-        signum,
-        abs,
-    },
-    prelude::*,
-};
+use cgmath::{num_traits::{abs, signum, Num},
+             prelude::*,
+             Angle,
+             Rad,
+             Vector2};
 
 pub mod game_timer;
 
@@ -125,7 +119,7 @@ pub fn move_towards_next_waypoint(actor: &mut Actor, delta_t: &f64) {
     }
 }
 
-pub fn limit_vector2(limit: f64, vector: Vector2<f64>)-> Vector2<f64> {
+pub fn limit_vector2(limit: f64, vector: Vector2<f64>) -> Vector2<f64> {
     let mut result = vector;
     if abs(vector.x) > limit {
         result.x = signum(result.x) * limit
@@ -137,19 +131,21 @@ pub fn limit_vector2(limit: f64, vector: Vector2<f64>)-> Vector2<f64> {
     result
 }
 
-pub fn bearing_to_target(origin: cgmath::Point2<f64>, target: cgmath::Point2<f64>)-> f32 {
+pub fn bearing_to_target(origin: cgmath::Point2<f64>, target: cgmath::Point2<f64>) -> f32 {
     let vector: Vector2<f64> = target - origin;
     let rad: Rad<f64> = Angle::atan2(vector.y, vector.x);
     rad.0 as f32 + PI / 2.0
 }
 
-pub fn affine_transform<T>(value: T, from_min: T, from_max: T, to_min: T, to_max: T)-> T
-    where T: Num + Copy {
+pub fn affine_transform<T>(value: T, from_min: T, from_max: T, to_min: T, to_max: T) -> T
+where
+    T: Num + Copy,
+{
     (value - from_min) * ((to_max - to_min) / (from_max - from_min)) + to_min
 }
 
 pub fn rotate_vector2(vector2: &mut Vector2<f64>, angle: Rad<f64>) {
-   let magnitude: f64 = vector2.magnitude();
-   vector2.x = Angle::cos(angle) * magnitude;
-   vector2.y = Angle::sin(angle) * magnitude;
+    let magnitude: f64 = vector2.magnitude();
+    vector2.x = Angle::cos(angle) * magnitude;
+    vector2.y = Angle::sin(angle) * magnitude;
 }

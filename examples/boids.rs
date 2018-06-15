@@ -3,16 +3,14 @@ extern crate ggez;
 extern crate rand;
 extern crate skunkworks;
 
-use ggez::{
-    conf, event::{self, MouseState},
-    graphics::{
-        self,
+use ggez::{conf,
+           event::{self, MouseState},
+           graphics::{self,
                       // Font,
                       Image,
-        Point2,
-    }, Context,
-    GameResult,
-};
+                      Point2},
+           Context,
+           GameResult};
 
 use cgmath::{prelude::*, Rad, Vector2};
 
@@ -38,10 +36,7 @@ const COHESION_RANGE: f64 = 50.0;
 const COHESION_WEIGHT: f64 = 1.0;
 const CONSTRAIN_DISTANCE: f32 = 50.0;
 
-const ZERO_VECTOR: Vector2<f64> = Vector2 {
-    x: 0f64,
-    y: 0f64,
-};
+const ZERO_VECTOR: Vector2<f64> = Vector2 { x: 0f64, y: 0f64 };
 
 pub struct MainState {
     // circle_sprite: Image,

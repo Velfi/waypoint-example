@@ -1,8 +1,5 @@
 use std::time::{Duration, Instant};
 
-// self.delta_t = duration_to_f32(self.last_instant.elapsed());
-// self.last_instant = Instant::now();
-
 pub struct GameTimer {
     previous_instant: Instant,
     frame_time: f64,
@@ -41,6 +38,4 @@ impl Default for GameTimer {
 
 fn duration_to_f64(duration: Duration) -> f64 {
     duration.as_secs() as f64 + f64::from(duration.subsec_nanos()) * 1e-9
-    // fn duration_to_f32(duration: Duration) -> f32 {
-    // duration.as_secs() as f32 + duration.subsec_nanos() as f32 * 1e-9
 }

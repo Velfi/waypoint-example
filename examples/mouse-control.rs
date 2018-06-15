@@ -2,8 +2,8 @@ extern crate ggez;
 extern crate nalgebra;
 extern crate skunkworks;
 
-use ggez::{conf, event, Context, GameResult};
 use ggez::event::MouseButton;
+use ggez::{conf, event, Context, GameResult};
 
 use ggez::graphics;
 use ggez::graphics::{DrawMode, Font, Mesh, Point2};
@@ -13,8 +13,8 @@ use nalgebra::Vector2;
 use std::{env, path};
 
 use skunkworks::game_timer::GameTimer;
-use skunkworks::{actor_at_waypoint, draw_player, draw_waypoints, draw_waypoint_labels, move_towards_next_waypoint,
-                 Actor, Waypoint};
+use skunkworks::{actor_at_waypoint, draw_player, draw_waypoint_labels, draw_waypoints,
+                 move_towards_next_waypoint, Actor, Waypoint};
 
 pub struct MainState {
     player: Actor,
