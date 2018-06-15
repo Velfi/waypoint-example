@@ -20,21 +20,29 @@ use std::cell::RefCell;
 
 use skunkworks::{affine_transform, bearing_to_target, game_timer::GameTimer, limit_vector2};
 
+const HD: (u32, u32) = (1280, 720);
+const FULL_HD: (u32, u32) = (1920, 1080);
+const UHD: (u32, u32) = (3840, 2160);
+
+const WXGA: (u32, u32) = (1280, 800);
+const WUXGA: (u32, u32) = (1920, 1200);
+
 const BOID_COUNT: u32 = 200;
-const SCREEN_HEIGHT: u32 = 800;
-const SCREEN_WIDTH: u32 = 1280;
+const RESOLUTION: (u32, u32) = WUXGA;
 const MAX_FORCE: f64 = 0.03;
 const MAX_SPEED: f64 = 2.0;
 const CIRCLE_RADIUS: f64 = 100.0; // Radius of the wandering circle
 const RADIAN_DELTA: f64 = 0.017_453_3f64 * 15.0; // Maximum degree of variance when wandering
 const WANDER_WEIGHT: f64 = 1.0;
-const SEPARATION_RANGE: f64 = 25.0;
+const SEPARATION_RANGE: f64 = 80.0;
 const SEPARATION_WEIGHT: f64 = 1.5;
-const ALIGN_RANGE: f64 = 50.0;
+const ALIGN_RANGE: f64 = 160.0;
 const ALIGN_WEIGHT: f64 = 1.0;
-const COHESION_RANGE: f64 = 50.0;
+const COHESION_RANGE: f64 = 160.0;
 const COHESION_WEIGHT: f64 = 1.0;
-const CONSTRAIN_DISTANCE: f32 = 50.0;
+const CONSTRAIN_DISTANCE: f32 = 20.0;
+
+const BG_SCALE: f32 = RESOLUTION.0 as f32 / 1280 as f32;
 
 const ZERO_VECTOR: Vector2<f64> = Vector2 { x: 0f64, y: 0f64 };
 
@@ -64,8 +72,8 @@ impl MainState {
                     rng_seed.gen_range(-MAX_SPEED, MAX_SPEED),
                 ),
                 cgmath::Point2::new(
-                    rng_seed.gen_range(0f64, f64::from(SCREEN_WIDTH)),
-                    rng_seed.gen_range(0f64, f64::from(SCREEN_HEIGHT)),
+                    rng_seed.gen_range(0f64, f64::from(RESOLUTION.0)),
+                    rng_seed.gen_range(0f64, f64::from(RESOLUTION.1)),
                 ),
             )));
         }
@@ -82,6 +90,7 @@ impl MainState {
             game_timer: GameTimer::new(),
             default_offset: Point2::new(0.5, 0.5),
         };
+        println!("BG_SCALE: {}", BG_SCALE);
 
         Ok(s)
     }
@@ -116,7 +125,15 @@ impl event::EventHandler for MainState {
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx);
 
-        graphics::draw(ctx, &self.bg_image, Point2::new(0.0, 0.0), 0.0)?;
+        graphics::draw_ex(
+            ctx,
+            &self.bg_image,
+            graphics::DrawParam {
+                dest: Point2::new(0.0, 0.0),
+                scale: Point2::new(BG_SCALE, BG_SCALE),
+                ..Default::default()
+            },
+        )?;
 
         for vehicle in &self.vehicles {
             graphics::draw_ex(
@@ -147,8 +164,8 @@ pub fn main() {
     use std::{env, path};
 
     let mut c = conf::Conf::new();
-    c.window_mode.width = SCREEN_WIDTH;
-    c.window_mode.height = SCREEN_HEIGHT;
+    c.window_mode.width = RESOLUTION.0;
+    c.window_mode.height = RESOLUTION.1;
     let ctx = &mut Context::load_from_conf("Test", "Waypoint", c).unwrap();
 
     // We add the CARGO_MANIFEST_DIR/resources do the filesystems paths so
@@ -215,9 +232,9 @@ impl Vehicle {
 
         self.constrain_location(
             -CONSTRAIN_DISTANCE,
-            SCREEN_WIDTH as f32 + CONSTRAIN_DISTANCE,
+            RESOLUTION.0 as f32 + CONSTRAIN_DISTANCE,
             -CONSTRAIN_DISTANCE,
-            SCREEN_HEIGHT as f32 + CONSTRAIN_DISTANCE,
+            RESOLUTION.1 as f32 + CONSTRAIN_DISTANCE,
         );
     }
 
